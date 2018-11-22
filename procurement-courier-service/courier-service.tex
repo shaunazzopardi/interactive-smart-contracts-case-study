@@ -1,0 +1,61 @@
+A promising use case for distributed ledgers is that of serving as a trusted record. Here we consider a case study where a buyer and a seller agree to use a procurement smart contract on the Ethereum blockchain as the environment where they interact. 
+
+The buyer places orders by calling an \texttt{addOrder} function in the smart contract, with enough ether to pay for the cost of the order. Then off-chain the seller is obliged to deliver the order in the estimated time of arrival (ETA), upon which the money paid into the smart contract by the buyer is released to the seller. To automate this the seller engages the service of a courier to perform the delivery, such that the buyer signs for arrival of the goods, by calling some \texttt{signature} function in the courier's smart contract. In turn this function calls back into the procurement smart contract, calling the \texttt{delivery} function that releases the cost of the order to the seller. 
+
+Here we consider behaviour expected by the buyer and other behaviour promised by the seller. In \ref{f:expectedmodelcourier} the buyer specifies that an order $o$ is certified as delivered (i.e. the \texttt{delivery} is called) only for orders that have been created and not delivers. This avoids the courier service requesting the buyer to pay for an order twice, or to pay for an order they did not create. In \ref{f:promisedmodelcourier} the seller promises to allow the buyer to cancel an order and refund the buyer successfully if the order ETA has elapsed. We replicate this property for each order, by keeping hashmap of each order's monitor state.
+
+Here we are able to prove the promised model, since we can show that the mapping \textit{orderETA[o]} is initialised only when \textit{addOrder(o)} is called, and \textit{cancel(o)} is not successful if the ETA is less than the current time, after which a refund is always enacted. On the other hand the expected model cannot be proven, since no pre-conditions of the function prevent delivering an order twice. By monitoring and enforcing this expected model the user can ensure that this does not happen at runtime.
+
+
+\begin{figure*}[tbp!]
+	\begin{subfigure}{0.5\textwidth}
+		%        \centering
+		\scalebox{0.5}{
+			\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+			%States
+			\node (s_0) [draw, circle, initial] {0};
+
+			\node (bad) [draw, accepting, fill=red, circle, below = 5cm of s_0] {4};
+			
+			\path[line width=2pt,->] [loop above] (s_0)    edge node { \texttt{\large {\bf enter(id):}}\\ \texttt{\large addOrder(o)}\\ \large $\mapsto$ orderedAndNotDelivered[o] = true;\\} (s_0);
+			
+			\path[line width=2pt,->] [loop right] (s_0)    edge node {\\ \texttt{\large {\bf enter():}}\\ \texttt{\large delivery(o)}\\\large $\mid$ orderedAndNotDelivered[o] == true;\\\large $\mapsto$  orderedAndNotDelivered[o] = false;} (s_0);
+			
+			\path[line width=2pt,->] [] (s_0)    edge node { \texttt{\large {\bf enter():}}\\ \texttt{\large delivery(o)}\\\large $\mid$ orderedAndNotDelivered[o] == false} (bad);
+			
+			\end{tikzpicture}}
+		\caption{An order can only be delivered if it has been ordered and if it has not been delivered before.}
+		\label{f:expectedmodelcourier}
+	\end{subfigure}%
+	~
+	\begin{subfigure}{0.5\textwidth}
+		        \centering
+		\scalebox{0.5}{
+			\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+%States
+\node (s_0) [draw, circle, initial] {0};
+\node (foreach) [left = 5cm of s_0] {\textbf{For each: } o};
+\node (s_1) [draw, circle, below = 3cm of s_0] {1};			
+\node (good) [draw, circle, left = 5.5cm of s_1] {2};		
+\node (s_2) [draw, circle, below = 3cm of s_1] {3};	
+\node (bad) [draw, accepting, fill=red, circle, left = 5.5cm of s_3] {4};
+
+
+\path[line width=2pt,->] [] (s_0)    edge node { \texttt{\large {\bf enter(id):}}\\ \texttt{\large addOrder(o)}} (s_1);
+
+\path[line width=2pt,->] [above] (s_1)    edge node { \texttt{\large {\bf exit():}}\\ \texttt{\large delivery(o)}} (good);
+
+\path[line width=2pt,->] [] (s_1)    edge node { \texttt{\large {\bf entry():}}\\ \texttt{\large cancel(o)}\\\large $\mid orderETA[o] \neq 0 \wedge orderETA[o] < now$} (s_2);
+
+\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit():}}\\ \texttt{\large transfer(cost(o))}} (good);
+
+\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit():}}\\ \texttt{\large cancel()}} (bad);
+
+\end{tikzpicture}}
+		\caption{An order can be canceled if it has not been delivered and if the ETA has elapsed, upon which the cost of the order is released to the buyer.}
+		\label{f:promisedmodelcourier}
+	\end{subfigure}
+	\caption{Courier service case study.}
+	
+	\label{couriermodels}
+\end{figure*}

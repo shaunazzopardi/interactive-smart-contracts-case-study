@@ -1,0 +1,1 @@
+expected model is satisfied when analysed against promised model

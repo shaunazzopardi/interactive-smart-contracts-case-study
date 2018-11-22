@@ -1,0 +1,68 @@
+%\subsection{Case Study - Electric Car Battery Swapping}
+
+Although widely used to implement crypto-currencies, blockchains are being proposed for many other uses, among them to increase trust between devices in the Internet of Things (IoT) \cite{joshua}. We consider a case study in this promising line of work.
+
+As proposed in \cite{electricbattery} blockchains provide a transparent and effective environment in which electric cars and battery stations can interact to facilitate charging and/or swapping of batteries at appropriate stations. Here we consider an implementation of such a battery swapping scenario in the form of a car smart contract that interacts with a station smart contract to query the availability of compatible batteries and to effect the battery swap.
+
+In Fig.~\ref{f:expectedmodelcar} we specify an expected model required by a car's smart contract, where it requires that upon the car calling the station's \texttt{effectSwap} function then the battery station calls in turn the car's \texttt{setBatteryID} function, setting the new battery's id in the car's smart contract. In Fig.~\ref{f:promisedmodelstation} we can see that this is already ensured by the station, while moreover it ensures that the new battery's charge level is also sent to the car, while that this is also bigger than 95\%. Note how if the transition between states 1 and 2 was not present in Fig.~\ref{f:promisedmodelstation} then Fig.~\ref{f:expectedmodelcar} would not be ensured, but by analysing the smart contract of the station Fig.~\ref{f:expectedmodelcar} can still be verified statically. Here the residual $EM \setminus PM$ is thus the trivially satisfied property, and we only need to verify $PM$ at runtime\footnote{Note, with some further analysis we could also collapse states 1, 2, and 3, since these are ensured by the code.}.
+
+
+
+\begin{figure*}[tbp!]
+	\begin{subfigure}{0.5\textwidth}
+		%        \centering
+		\scalebox{0.5}{
+			\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+			%States
+			\node (s_0) [draw, circle, initial] {0};
+			\node (s_1) [draw, circle, below = 2cm of s_0] {1};			
+			\node (s_2) [draw, circle, below = 2cm of s_1] {2};		
+			\node (s_3) [draw, circle, below = 2cm of s_2] {3};	
+			\node (bad) [draw, accepting, fill=red, circle, left = 5cm of s_1] {4};
+			
+			\path[line width=2pt,->] [] (s_0)    edge node { \texttt{\large {\bf enter(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (s_1);
+			\path[line width=2pt,->] [] (s_1)    edge node { \texttt{\large {\bf call():}}\\ \texttt{\large caller.setBatteryID(*)}} (s_2);
+			\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (s_3);
+			\path[line width=2pt,->] [] (s_1)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (bad);
+			
+			\end{tikzpicture}}
+		\caption{Effecting a swap calls the caller's (\texttt{msg.sender}) \textit{setBatteryID} function.}
+		\label{f:expectedmodelcar}
+	\end{subfigure}%
+	~
+	\begin{subfigure}{0.5\textwidth}
+		        \centering
+		\scalebox{0.5}{
+			\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+%States
+\node (s_0) [draw, circle, initial] {0};
+\node (s_1) [draw, circle, below = 2cm of s_0] {1};			
+\node (s_2) [draw, circle, below = 2cm of s_1] {2};		
+\node (s_3) [draw, circle, below = 2cm of s_2] {3};	
+\node (s_4) [draw, circle, below = 2cm of s_3] {4};	
+\node (bad1) [draw, accepting, fill=red, circle, left = 5.5cm of s_1] {5};
+\node (bad2) [draw, accepting, fill=red, circle, left = 5.5cm of s_2] {6};
+\node (bad3) [draw, accepting, fill=red, circle, left = 5.7cm of s_3] {7};
+
+\path[line width=2pt,->] [] (s_0)    edge node { \texttt{\large {\bf enter(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (s_1);
+
+\path[line width=2pt,->] [] (s_1)    edge node { \texttt{\large {\bf call():}}\\ \texttt{\large caller.setBatteryID(battID)}} (s_2);
+
+\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf call():}}\\ \texttt{\large caller.setBatteryChargeLeft(\_charge)}\\\large $\mapsto$ charge = \_charge} (s_3);
+
+\path[line width=2pt,->] [] (s_3)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}\\ \large$\mid$ charge $>$ 95} (s_4);
+
+\path[line width=2pt,->] [] (s_1)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (bad1);
+
+\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}} (bad2);
+
+\path[line width=2pt,->] [] (s_3)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{\large effectSwap(battID, loc)}\\ \large$\mid$ charge $\leq$ 95} (bad3);
+
+\end{tikzpicture}}
+		\caption{Effecting a swap sets the caller's new battery ID and its charge, while it is ensured that the new battery has more than 95\% charge.}
+		\label{f:promisedmodelstation}
+	\end{subfigure}
+	\caption{Example expected model and promised model for the battery swapping example.}
+	
+	\label{models}
+\end{figure*}

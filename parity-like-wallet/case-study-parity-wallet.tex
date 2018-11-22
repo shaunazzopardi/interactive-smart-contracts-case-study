@@ -1,0 +1,347 @@
+\subsection{Case Study - Parity Wallet}
+\label{}
+
+\noindent\begin{minipage}{.45\textwidth}
+	\hfill
+	\begin{lstlisting}[caption={Part of Wallet smart contract.},basicstyle=\tiny,captionpos=b,label={wallet}]
+	contract Wallet{
+	...
+	function isOwner(address _addr) constant 
+	returns (bool) {
+	return _library.delegatecall(msg.data);
+	}
+	...
+	address _library;
+	}
+	\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}{.45\textwidth}
+	\begin{lstlisting}[caption={Part of WalletLibrary smart contract.},basicstyle=\tiny,captionpos=b,label={walletlibrary}]
+	contract WalletLibrary{
+	...
+	function isOwner(address _addr) constant 
+	returns (bool) {
+	require(m_ownerIndex[uint(_addr)] > 0);
+	return true;
+	}
+	...
+	address _library;
+	mapping(uint => uint) m_ownerIndex;
+	}
+	\end{lstlisting}
+\end{minipage}
+
+In this section we consider a case study inspired by a real-world existing service. This has been subject to unexpected behaviour due to vulnerabilities in the code --- we apply our framework showing how it can be re-purposed into a more secure service. We motivate the use of analysis techniques to secure these dependencies by considering some past vulnerabilities of the wallet.
+
+We consider a simplified version of a popular smart contract that provides wallet business logic for user wallets through message-passing calls, namely the Parity wallet\footnote{\url{https://github.com/paritytech/parity}}. Each user deploys their own wallet smart contract, which has little logic as possible, and delegates work to a wallet library, as shown in Listing.~\ref{wallet}.
+. %The logic for transacting with the ether held by wallets is already available on the blockchain through another smart contract, the wallet library, which the wallets can individually call (). %Calls in Ethereum are of two kinds: (i) a \textit{call}, which is analogous to a message-passing call between two different processes with different memory, and (ii) a \textit{delegatecall} which runs another smart contract's function within the storage of the caller smart contract. 
+
+%. For example, here the \textit{WalletLibrary} smart contract defines a function \texttt{execute} that given an address and an integer value attempts to send the equivalent value of ether to the address. The \textit{Wallet} smart contract does not contain such a function, but deals with calls to such a function by executing the \textit{execute} function in the library in its own context, i.e. the \textit{execute} function sends ether from the \textit{Wallet} smart contract not from the library.
+
+
+In theory this architecture can be useful, however in practice vulnerabilities in the library smart contract can prove disastrous for the users. In the case of the Parity smart contract it has even led to millions of dollars worth of ether to be stolen from wallets \cite{multisighack}. The inability of users to change the pointer to the library in the Parity wallet, and a vulnerability that allowed anyone to destroy the library also resulted in wallets containing substantial amount of dollars worth of ether but no method to do anything with them \cite{killhack}. We consider an example expected and promised model and illustrate the application of the formal techniques detailed in the previous section and qualitatively and quantitatively evaluate it.
+
+\medskip
+
+%\sa{Make text bigger, and other assorted stuff}
+%\begin{figure*}[htbp!]
+%    \centering
+%    \begin{subfigure}[t]{0.5\textwidth}
+%        \centering
+%            \includegraphics[scale=0.35]{./img/parity/parity-wallet-arch.pdf}
+%            \caption{Parity wallet architecture.}
+%            \label{parity}
+%    \end{subfigure}%
+%    ~ 
+%    \begin{subfigure}[t]{0.5\textwidth}
+%        \centering
+%            \includegraphics[scale=0.25]{./img/parity/parity-wallet-arch-with-monitoring.pdf}
+%            \caption{Adding a smart contract monitoring for and possible enforcing a user's specifications.}
+%            \label{monitoringaservice}
+%    \end{subfigure}
+%    \caption{Parity architecture as originally and with monitoring.}
+%   
+%\label{Parity}
+%\end{figure*}
+
+
+%The following function illustrates how a call to check ownership in a wallet is delegated to the library (at address \textit{\_walletLibrary}):
+%
+%\begin{lstlisting}[caption={Example Wallet function.},captionpos=b]
+%function isOwner(address _addr) constant returns (bool) {
+%    return _walletLibrary.delegatecall(msg.data);
+%  }
+%\end{lstlisting}
+%
+%Note how the \texttt{constant} modifier here ensures that the function does not have any effect on the storage of the smart contract. \texttt{msg.data} refers to the original call made by the user, such that \texttt{delegatecall(msg.data)} executes the call with the \texttt{isOwner} function at address \texttt{\_walletLibrary}.
+%
+%
+%Parity wallets require multiple signatures, but we consider single owner wallets for simplicity. To allow wallet library addresses to change we only need to add the following function to the Wallet smart contract:
+%
+%\begin{lstlisting}
+%function changeLibrary(address newLibrary) {
+%    _walletLibrary = newLibrary;
+%}
+%\end{lstlisting}
+%
+%But this is unsafe, anyone can change the library. To make it safe we can add a check to only allow the owner to use this function (assuming a variable \textit{\_owner} that is collected on wallet initialisation):
+%
+%\begin{lstlisting}
+%address _owner;
+%
+%modifier onlyOwner(){
+%    if(msg.sender != _owner) throw;
+%    else _;
+%}
+%
+%function changeLibrary(address _newLibrary) onlyOwner {
+%    _walletLibrary = _newLibrary;
+%}
+%\end{lstlisting}
+%
+%Alternatively the service provider of the library can propose an update to the library themselves.
+%
+%\begin{lstlisting}
+%address _serviceProvider;
+%address _proposedLibrary;
+%
+%modifier onlyServiceProvider(){
+%    if(msg.sender != _serviceProvider) throw;
+%    else _;
+%}
+%
+%function proposeNewLibrary(address _newLibrary) onlyServiceProvider {
+%    _proposedLibrary = _newLibrary;
+%}
+%\end{lstlisting}
+%
+%With the library being used only upon being accepted by the owner of the smart contract, who can perform any checks they require off-chain to ascertain suitability of the proposed library.
+%
+%\begin{lstlisting}
+%function acceptNewLibrary() onlyOwner {
+%    if(_proposedLibrary != address(0)) _walletLibrary = _proposedLibrary;
+%}
+%\end{lstlisting}
+%
+%\subsection{Verifying proposed dependencies}
+
+\begin{figure*}[tbp!]
+    \begin{subfigure}{0.5\textwidth}
+%        \centering
+\scalebox{0.5}{
+\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+%States
+	\node (s_0) [draw, circle, initial] {0};
+	\node (bad_0) [draw, circle, fill=red, accepting, right = 3cm of s_0] {};
+	\node (s_1) [draw, circle, below = 2cm of s_0] {1};
+	\node (bad_1) [draw, circle, fill=red, accepting, right = 6cm of s_1] {};
+	\node (s_2) [draw, circle, below = 3cm of s_1] {2};
+	\node (bad_2) [draw, circle, fill=red, accepting, left = 4cm of s_2] {};
+	\node (bad) [draw, circle, fill=red, accepting, below = 2cm of s_2] {};
+	
+	\path[line width=2pt,->] [dashed, above] (s_0)    edge node {\texttt{\large \bf exit(*):} *} (bad_0);
+	\path[line width=2pt,->] [left] (s_0)    edge node { \texttt{\large {\bf exit(*):}}\\\texttt{\large initWallet(owners, *)}\\$\mapsto$ \texttt{\large model.owners = owners}} (s_1);
+	\path[line width=2pt,->] [bend left = 30] (s_1)    edge node {\texttt{\large {\bf entry(id):}}\\ \texttt{\large execute(to, value, *)}\\$\mid$ \texttt{\large msg.sender $\not\in$ model.owners}} (s_2);
+	\path[line width=2pt,->] [dashed] (s_1)    edge node {\texttt{\large {\bf exit(*):} initWallet(*)}} (bad_1);
+	\path[line width=2pt,->] [bend left = 30] (s_2)    edge node { \texttt{\large {\bf exit(id):}}\\ \texttt{ execute(to, value, *)}} (s_1);	
+	\path[line width=2pt,->] [dashed] (s_2)    edge node {\texttt{\large {\bf exit(*):}}\\\texttt{\large initWallet(*)}} (bad_2);
+
+	\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit(*):}}\\ \texttt{\large to.call.value(value)(*)}} (bad);
+
+\end{tikzpicture}}
+	\caption{Example user expected model, where wallet is required to be initialised only once, and only allows owners to send ether (assuming owners cannot be changed for simplicity).}
+	\label{f:expectedmodel}
+    \end{subfigure}%
+    ~
+    \begin{subfigure}{0.5\textwidth}
+%        \centering
+\scalebox{0.5}{
+\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+States
+	\node (s_0) [draw, circle, initial] {0};
+	%\node (bad_0) [draw, circle, fill=red, accepting, right = 6cm of s_0] {};
+	\node (s_1) [draw, circle, below = 2cm of s_0] {1};
+	%\node (bad_1) [draw, circle, fill=red, accepting, right = 6cm of s_1] {};
+	\node (s_2) [draw, circle, below = 3cm of s_1] {2};
+	\node (bad_3) [draw, circle, accepting, fill=red, left = 5cm of s_2] {};
+	\node (s_3) [draw, circle, accepting, fill=red, below = 2cm of s_2] {};
+	
+%	\path[line width=2pt,->] [] (s_0)    edge node {\texttt{\large \bf successful:} setDailyLimit(limit)} (bad_0);
+	\path[line width=2pt,->] [right] (s_0)    edge node { \texttt{\large {\bf exit(*):}}\\\texttt{\large initWallet(owners, limit)}\\$\mapsto$ \texttt{\large model.limit =  limit}\\ $\wedge$ \texttt{\large model.owners = owners}} (s_1);
+	\path[line width=2pt,->] [loop left] (s_1)    edge node { \texttt{\large {\bf exit(*):}}\\\texttt{\large setTransactionLimit(limit)}\\$\mapsto$ \texttt{\large model.limit =  limit}} (s_1);
+	\path[line width=2pt,->] [align=left, bend left = 10] (s_1)    edge node [align=left]{\texttt{\large {\bf entry(id):}}\\\texttt{\large execute(to, value, \_)}\\$\mid$ \texttt{\large value $>$ model.limit}\\ $\vee$ \texttt{\large msg.sender}\\\texttt{\large $\not\in$ model.owners}} (s_2);
+	\path[line width=2pt,->] [bend left = 10] (s_2)    edge node { \texttt{\large {\bf exit(id):}}\\\texttt{\large execute(to, value, *)}} (s_1);	
+	\path[dotted, line width=2pt,->] [above] (s_2)    edge node { \texttt{\large {\bf change:}}\\\texttt{\large WalletLibrary.owners}} (bad_3);	
+	\path[dotted, line width=2pt,->] [below] (s_2)    edge node { \texttt{\large {\bf change:}}\\\texttt{\large WalletLibrary.limit}} (bad_3);	
+	%\path[line width=2pt,->] [] (s_2)    edge node {\texttt{\large {\bf successful:} initWallet(\_)}} (s_3);
+
+	\path[line width=2pt,->] [] (s_2)    edge node { \texttt{\large {\bf exit(*):}}\\\texttt{\large  to.call.value(value)(*)}} (s_3);
+\end{tikzpicture}}
+	\caption{Promised model that assures that whenever transactions are below the transaction limit, or the transaction is not initiated by an owner of the wallet then the transaction will be unsuccessful (and owners and limit will not be changed).}
+	\label{f:promisedmodel}
+    \end{subfigure}
+    \caption{Example expected model and promised model.}
+   
+\label{models}
+\end{figure*}
+
+%\begin{figure}[t!]
+%
+%\end{figure}
+
+Consider the models in \ref{models}. Here transitions that use an $*$ are considered last, with the $*$ matching any object that would fit in its place. \texttt{to.call.value(value)} is Solidity code to send \texttt{value} units of ether (Ethereum cryptocurrency) to the address \texttt{to}, while \texttt{msg.sender} identifies the caller of the function. Fig.~\ref{f:expectedmodel} specifies that a wallet must be initialised with some owners and cannot be initialised again, while if a transaction is initiated (i.e. \texttt{execute} is called) then it is only successful if it is initiated by one of the owners. Fig.~\ref{f:promisedmodel} similarly specifies that if a wallet is initialised with some owners and a transaction limit, then transactions initiated for values over the limit or by non-owners will fail (and that during a transaction the owners and limit cannot changed). Clearly there is some intersection between the two, in fact if we consider the expected model in Fig.~\ref{f:expectedmodel} without the dashed transitions then the promised model includes this smaller model's whole bad traces. With this reduced model our analysis would consider the the promised model as stricter than expected model and attempt to verify the promised model using a combination of static and dynamic analysis.
+
+However, if we consider the full expected model with the dashed transitions then this is clearly not the case: the promised model does not prohibit the smart contract from being re-initialised (this was in fact a problem with a version of the Parity wallet, see \cite{multisighack}), while the full expected model does. If we consider that the user still wants to use the offered service (perhaps we cannot find a better alternative), we then enforce the parts of the expected model not prohibited by the promised model at runtime. Moreover we can statically analyse the promised model against the smart contract, and conclude that the dotted transitions in Fig.~\ref{f:promisedmodel} will not affect the smart contract variables owners and limit (and thus can ignored at runtime). %A choice here is whether to do this enforcement separately from the promised model monitoring or not. In this case combining them (using a form of synchronous semi-composition as described before but considering a bad state as bad if it is bad for at least one of the models, in effect the union of the languages) avoids the need to do a number of the same transitions in different monitors. This combination results in the promised model in Fig.~\ref{f:promisedmodel} with the two dashed transitions in Fig.~\ref{f:expectedmodel}. 
+
+
+%\ref{monitoringaservice} illustrates the smart contracts involved in this process. Using a delegatecall here allows the user's monitor to view the service's state and enforce their property, note that however it also creates security vulnerabilities, e.g. a user could modify the global state. To avoid this we can limit our enforcement to simply cancelling a transaction and reverting the state to before the function call (by using \texttt{revert()}.
+%%, and using the \texttt{constant} modifier that ensures the function does not modify the state:
+%In fact we define the reparation function for the DEA in \ref{f:expectedmodelreduced} such that upon reaching the bad states from the expected model (the states connected with the dashed transitions) the reparation function performs a \texttt{revert()} command, which cancels the function call that caused the violation, such that is no effect (and therefore the monitor backtracks to its state before the call).
+
+
+%\subsubsection{Expected Model}
+%\ref{f:expectedmodel} depicts a reasonable expectation a user may have of a wallet library.  This specifies that no functions can be called and end normally before the wallet is initialised. After a wallet has been initialised with a set of owners then only those owners can direct the smart contract to send ether to another address. 
+
+
+%\subsubsection{Promised Model} \ref{f:promisedmodel} illustrates a possible promised model, where the service provider promises that if a transaction limit is set, and a transaction is requested that is below or equal to this limit\footnote{Parity wallet uses a daily spending limit, not a transaction limit. We use the latter for simplicity in illustration, the model can easily be extended to handle the daily spending limit instead.}. Here we use a different semantics than that for \ref{f:expectedmodel}, where instead we specify the good traces of the smart contract, where every trace not in the model is a bad trace. These are equivalent notations. 
+
+
+%Doing model checking between the expected and promised model we can see that the promised model ensures the expected model only when a limit is set and when the value of a transaction is bigger than this limit. Thus, if we know that the smart contract satisfies the promised model (i.e. either the code satisfies it or it is being enforced at runtime), we can reduce the expected model by what we know is being enforced. \ref{f:expectedmodelreduced} illustrates such a residual model that can be enforced instead of the expected model, it differs from \ref{f:expectedmodel} in that it monitors for \texttt{setTransactionLimit} calls, and adds conditions for the \texttt{{\bf entering: }execute} transition to trigger. 
+
+
+
+%\begin{figure}[t!]
+%\scalebox{0.5}{
+%\begin{tikzpicture}[every text node part/.style={align=center},node distance=6cm,on grid,auto]
+%%States
+%	\node (s_0) [draw, circle, initial] {0};
+%%	\node (bad_0) [draw, circle, fill=red, accepting, right = 6cm of s_0] {};
+%	\node (s_1) [draw, circle, below = 2cm of s_0] {1};
+%	\node (bad_1) [draw, circle, fill=red, accepting, right = 6cm of s_1] {};
+%	\node (s_2) [draw, circle, below = 3cm of s_1] {2};
+%	\node (bad_2) [draw, circle, fill=red, accepting, right = 6cm of s_2] {};
+%	\node (bad) [draw, circle, fill=red, accepting, below = 2cm of s_2] {};
+%	
+%%	\path[line width=2pt,->] [] (s_0)    edge node {\texttt{\bf exit(*): *}} (bad_0);
+%	\path[line width=2pt,->] [left] (s_0)    edge node { \texttt{{\bf exit(*):} initWallet(owners, *)}\\$\mapsto$ model.owners = \texttt{owners}\\ $\wedge$ model.limit = limit} (s_1);
+%		\path[line width=2pt,->] [loop left] (s_1)    edge node { \texttt{{\bf exit(*):} setTransactionLimit(limit)}\\$\mapsto$ model.limit = \texttt{limit}} (s_1);
+%
+%	\path[line width=2pt,->] [bend left = 30] (s_1)    edge node {\texttt{{\bf entry(id):} execute(to, value, \_)}\\$\mid$  \texttt{msg.sender} $\not\in$ model.owners\\$\vee$ value $\leq$ model.limit} (s_2);
+%	\path[line width=2pt,->] [] (s_1)    edge node {\texttt{{\bf exit(*):} initWallet(*)}} (bad_1);
+%	\path[line width=2pt,->] [bend left = 30] (s_2)    edge node { \texttt{{\bf exit(id):} execute(to, value, *)}} (s_1);	
+%	\path[line width=2pt,->] [] (s_2)    edge node {\texttt{{\bf exit(*):} initWallet(*)}} (bad_2);
+%
+%	\path[line width=2pt,->] [] (s_2)    edge node { \texttt{{\bf exit(*):}\  to.call.value(value)(*)}} (bad);
+%
+%\end{tikzpicture}}
+%	\caption{Fig.~\ref{f:expectedmodel} synchronously composed with Fig.~\ref{f:promisedmodel}.}
+%	\label{f:expectedmodelreduced}
+%\end{figure}
+
+
+
+%The model we choose here uses a notation that allows the specification of bad traces by the specification of states that should not be reached (the states in red), similar to that used in \cite{contractLarva}. The deterministic transitions used are of the form $q \xrightarrow{e\ \mid\ c\ \mapsto\ a} q'$, where events $e$ are of the form $modality :\ call$, $c$ is a boolean condition on the model's and the smart contract's state, and $a$ is an action that can change the model state. Considering events, we use underscores, $\_$, to match anything that fits wherever it is used, unless another transition can be matched. The event modality \textbf{successful} denotes the successful execution of a call from start to finish, while \textbf{entering} and \textbf{exiting} respectively denote the entering and exiting of a function call. The \textbf{id} parameter to the latter two modalities, as used in the figure, symbolically represents that the events correspond to the same method call, and not to some other recursive call (the latter can be matched by using a different symbol, e.g. $\textbf{id}'$). These notions allow us to ignore the side-effects of a call or to register any events triggered by a function's execution, as needed.
+
+%Knowing \ref{f:expectedmodel} is the expected behaviour model of the dependency of our user's wallet, we can then attempt to verify that a proposed smart contract satisfies it or not. Consider the Parity wallet library before the hack illustrated in \cite{multisighack}, with the definition of the \textit{initWallet} function as in Listing~\ref{lst:initWallet}. This does not satisfy this property (see transition $1 \rightarrow \textit{bad}$), since there are no provisions preventing re-initialisation. Thus, the wallet library would not be used by this user. If we try and verify the repaired version of the Parity wallet library we may be able to prove it safe with respect to \ref{f:expectedmodel}, however this is not always assured given Turing completeness, and we may obtain an inconclusive result. In such cases we would want the possibility to still use the library at runtime but to enforce our model. This can be done in two ways: (i) we deploy our own version of the library but instrumented with the model, but this defeats the purpose of having a service usable by multiple users, or (ii) we assume the service already comes with some instrumented events that can be monitored by users of the service. We consider the second here since it is more in the spirit of the Parity wallet implementation that aims to reduce the gas costs for each user, however the events monitored are limited to those set by the service provider.
+
+%This can be implemented by each user deploying their own monitoring smart contract, and registering it with the service smart contract.
+%
+%\begin{lstlisting}
+%mapping(address => address) userMonitor;
+%\end{lstlisting}
+%
+%Then, the service smart contract could trigger events for entry and exit of a function name by calling appropriately named methods in the user's monitoring smart contract.
+%
+%\begin{lstlisting}
+%function initWallet(){
+%    userMonitor[msg.sender].delegatecall(bytes4(keccak256("enteringInitWallet()")));
+%    //initWallet logic
+%    userMonitor[msg.sender].delegatecall(bytes4(keccak256("exitingInitWallet()")));
+%}
+%\end{lstlisting}
+
+
+
+
+%\begin{lstlisting}
+%mapping(address => address) userToMonitor;
+%
+%function enteringInitWallet() constant{
+%    if(/*condition*/){
+%        revert();    
+%    }
+%}
+%\end{lstlisting}
+%
+%On a \texttt{revert} a delegate call to this function will return \texttt{false}, which can be used to propagate the \texttt{revert} at the level of the service smart contract as follows:
+%
+%\begin{lstlisting}
+%mapping(address => address) userMonitor;
+%
+%function initWallet(){
+%    if(!userMonitor[msg.sender].delegatecall(bytes4(keccak256("enteringInitWallet()")))){
+%        revert();    
+%    }
+%    //initWallet logic
+%    if(!userMonitor[msg.sender].delegatecall(bytes4(keccak256("exitingInitWallet()")))){
+%        revert();    
+%    }
+%}
+%\end{lstlisting}
+
+
+% In fact if another user attempts to send such ether ($1 \rightarrow 2$) and it is successful then the  ($2 \rightarrow \textit{bad}$).
+
+
+
+%For verification purposes the user must expect some kind of interface out of the dependency. The expected model then defines the behaviour expected out of this interface (e.g. the dependency must provide the function \textit{initWallet}, such that if a call to \textit{initWallet} is successful, any subsequent call to \textit{initWallet} fails). Similarly the service provider provides a certain interface and behaviour, formalised through a promised model of behaviour. 
+
+
+
+%We evaluated this approach in terms of the added gas costs of instrumenting the service smart contract, and the costs of monitoring different verification configurations add to the runtime of the case study, showing how monitor deployment costs reduced by up to 30\% when monitoring the residuals of the promised model and of the expected model instead of the full versions\footnote{The evaluation artifacts can be found at {\url{https://github.com/shaunazzopardi/secure-parity-wallet}}. Testing was performed this on a test virtual machine, through \url{http://remix.ethereum.org}.}. In terms of real-world money and this specific case, the instrumentation, which is paid by the service provider, would be the largest added deployment costing up to 11 dollars\footnote{Assuming around a gas unit costs around 20 Gwei.} for deployment, with the others ranging around 4 dollars. The logic performed at runtime here is simple and all monitors add maximum running costs of around 5\% of gas to each transaction (not shown in diagram), which may scale up depending on the number of owners, (this was tested by calling functions of the wallet, particularly those with more intensive computation). Real-world costs are negligible here, amount to around 10 dollar cents. Few differences between the configurations were detected here, further study is required with more complex models. Depending on the business logic of monitors these costs will vary with other smart contracts, but our techniques allow for possibly reducing this cost, as we have shown. Time-wise our analysis process' runtime was negligible.
+
+%\subsection{Evaluation}
+
+%\begin{table}[t!]
+%\resizebox{\columnwidth}{!}{
+%\begin{tabular}{|r|r|r|r|}\hline
+%\small \textbf{Deployer} & \textbf{Additions} & \textbf{Added Deployment Cost} & \textbf{Added Deployment Cost}\\
+%\small  &  & \textbf{(in gas units)} & \textbf{(as a percentage of original)}\\
+%\small  &  & & \textbf{gas expenditure)}\\\hline
+%\textit{Service Provider} & Library Instrumentation & 807111
+% & 35.23\% \\\hline\hline
+%\textit{User} & PM + EM Monitoring & 354017 + 295818 & 97.46\% + 81.44\%\\\hline
+%& PM + EM$\setminus$ PM Monitoring & 354017 + 210829& 97.46\% + 58.04\% \\\hline %\hline
+%& (\textit{approx}(\SC) $\triangleright$ PM) + EM$\setminus$ PM Monitoring & 325911 + 210829 & 89.73\% + 58.04\% \\\hline %\hline
+%%& Combined Residual EM $+$ PM Monitoring & 90.4\%\normalsize \\\hline 
+%\end{tabular}
+%}
+%\caption{Added deployment gas costs {\cite{yellowpaper}} associated with adding our model-based verification to the Parity wallet (Note, we were not able to statically prove ). %The added storage cost refers to the cost of deploying the whole monitored system minus that of deploying the original unmonitored version. The added transaction cost is calculated by running the functions appropriately so as to exercise the monitor, and choosing the maximum added gas cost over each function.
+%}
+%\label{evaltable}
+%\end{table}
+%\normalsize
+%Qualitatively the benefits of the proposed framework are that: (i) it allows us to verify dependencies before they are used, and (ii) in the case of dependency failure one can always plug in a new one. Moreover, unlike before this framework puts users in control of the logic behind their wallet instead of depending on the service provider. It is assumed that they trust the verification service.
+%
+%Quantitatively we have several variables to measure: (i) the increased gas cost associated with deploying and running library with the extra instrumentation; (ii) the time needed to carry out the verification off-chain; and (iii) the deployment and running costs associated with the monitoring and enforcing logic. We then compare the gas costs (i) running an unmonitored version of the library against monitoring it; and (ii) using just runtime verification against using static analysis to attempt to prove parts of the models before. 
+% 
+%Ethereum bytecode instructions each have an associated unit of gas \cite{yellowpaper}, such that given an execution trace of instructions we can associate a certain amount of gas with it. This is called the \textit{execution cost}. Moreover, with every call from the outside of a blockchain there is associated a \textit{transaction cost} which depends on the size of the data given as a payload to the transaction request (plus 21000 gas for any transaction request, and 32000 gas for a contract deployment). The cost of a gas unit in ether depends on the market, thus for a quantitative evaluation we can just consider the cost of transactions in gas units. %\sa{I'll work on this next}
+
+%\ref{evaltable} illustrates the measurements done.\footnote{The evaluation artefacts can be found at {\url{https://github.com/shaunazzopardi/secure-parity-wallet}}}  \sa{to add discussion on results}
+
+%With regards to model monitoring, we have to consider also when monitoring for the full expected model is less expensive than monitoring for a residual (e.g. \ref{f:expectedmodelreduced} seems more complex than \ref{f:expectedmodel}, which may translate into higher gas costs for \ref{f:expectedmodelreduced}).
+
+
+%, simplistically, when given a trace of instructions at runtime we can associate a certain amount of gas with it, the gas cost $gc$. This amount cannot always be associated with a natural number, but can be dependent on certain possibly unknown or unlimited variables (e.g. the amount of iterations of a loop, or the cost of another called function). It can also be infinite (e.g. when the exit condition of a loop is just \textit{true}. By multiplying this amount (the gas cost $gc$) by some transaction cost ($tc$), as set by the market (i.e. depending if there is a miner willing to do the computation for that amount of ether), we get the amount of ether due to the miner ($gc*tc$). Since $tc$ is variable here, we consider just the $gc$ associated with usage of the original Parity wallet in comparison with the extra transactions and code required by our framework. We compute these manually by compiling the Solidity code to bytecode and analysing that.
+
+%Ethereum bytecode instructions each have an associated unit of gas \cite{yellowpaper}, such that, simplistically, when given a trace of instructions at runtime we can associate a certain amount of gas. By multiplying this amount (the gas cost $gc$) by some transaction cost ($tc$), as set by the market (i.e. depending if there is a miner willing to do the computation for that amount of ether), we get the amount of ether due to the miner ($gc*tc$). Moreover, there may be loops in a function meaning the gas cost of a function may further depend on the amount of times a loop iterates. Then given the gas cost of a run of loop $l$ is $gc_l$, the gas cost of the loop either has some upper bound $n*gc_l$, where $n$ is the maximum number of times a loop can iterate (which is a natural number at runtime, or statically an abstract/symbolic value, e.g. depending on the size of an array), or it has no upper bound (e.g. the loop end condition is \textit{true}). 
+
+
+
+
+
+
+%How much extra gas associated with this approach? How distributed?
+%Implementations for Verification Server: manual, or oraclize with IPFS.
+
+%%How can we ch
